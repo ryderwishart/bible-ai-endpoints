@@ -29,8 +29,6 @@ logger.setLevel(logging.DEBUG)
 
 import requests
 
-import requests
-
 # import yaml # NOTE: for testing whether YAML schema is more efficient token-wise
 
 endpoint = "https://macula-atlas-api-qa-25c5xl4maa-uk.a.run.app/graphql/"
@@ -164,7 +162,7 @@ def answer_question_using_atlas(query: str, show_sources: bool = False):
     Note that the bible reference is repeated for features and for instances. If searching for features without a passage reference filter, be sure to use pagination to limit the number of results returned!
 """
 
-    prompt = f"""Here is an example query for the graphql endpoint described below:
+    prompt = f"""Here are some example queries for the graphql endpoint described below:
     {examples}
 
     Answer the following question: {query} in the graphql database that has this schema {graphql_fields}"""

@@ -9,6 +9,7 @@ image = Image.debian_slim().pip_install(
     "sentence_transformers~=2.2.2",
     "chromadb~=0.3.23",
     "openai~=0.27.8",
+    "bs4~=0.0.1",
 )
 stub = Stub(
     name="tyndale-chroma",
