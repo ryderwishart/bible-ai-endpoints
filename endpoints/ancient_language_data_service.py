@@ -51,18 +51,6 @@ logger.info("Initializing agents...")
 
 # Plan and execute agent to handle requests
 
-atlas_endpoint = "https://ryderwishart--atlas-agent-answer-question-using-atlas.modal.run/"
-atlas_endpoint_example = "https://ryderwishart--atlas-agent-answer-question-using-atlas.modal.run/?query=What%20are%20the%20discourse%20features%20of%20JHN%201:11?"
-
-syntax_bracket_endpoint = "https://ryderwishart--syntax-agent-get-syntax-for-query.modal.run/"
-syntax_bracket_endpoint_example = "https://ryderwishart--syntax-agent-get-syntax-for-query.modal.run/?query=Jesus%20in%201%20John%201:1"
-
-syntax_agent_endpoint = "https://ryderwishart--syntax-agent-syntax-qa-chain.modal.run/"
-syntax_agent_endpoint = "https://ryderwishart--syntax-agent-syntax-qa-chain.modal.run/?query=What%20is%20the%20subject%20of%20the%20verb%20%27%20%27love%27%27%20in%20Matthew%205%3A44%3F"
-
-tyndale_agent_endpoint = "https://ryderwishart--tyndale-chroma-question.modal.run/"
-tyndale_documents_endpoint = "https://ryderwishart--tyndale-chroma-get-documents.modal.run/?query=jesus%20speaks%20to%20john"
-
 endpoints = {
     "atlas": {
         "endpoint": "https://ryderwishart--atlas-agent-answer-question-using-atlas.modal.run/",
