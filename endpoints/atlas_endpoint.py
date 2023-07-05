@@ -96,7 +96,7 @@ from langchain.agents import load_tools, initialize_agent, AgentType
 from langchain.utilities import GraphQLAPIWrapper
 
 
-@stub.function(keep_warm=1)
+@stub.function()
 @web_endpoint(method="GET")
 def answer_question_using_atlas(query: str, show_sources: bool = False):
     global endpoint

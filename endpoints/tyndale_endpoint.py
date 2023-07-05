@@ -73,7 +73,7 @@ if not Path("tyndale").exists():
     load_tyndale_database()
 
 
-@stub.function(keep_warm=1)
+@stub.function()
 @web_endpoint(method="GET")
 def get_documents(query: str, k=1, show_sources: bool = False):
     global tyndale_chroma
@@ -84,7 +84,7 @@ def get_documents(query: str, k=1, show_sources: bool = False):
     return result
 
 
-@stub.function(keep_warm=1)
+@stub.function()
 @web_endpoint(method="GET")
 def question(query: str, show_sources: bool = False):
     global tyndale_chroma
