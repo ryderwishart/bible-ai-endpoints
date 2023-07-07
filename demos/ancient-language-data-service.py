@@ -2,10 +2,15 @@ from __future__ import annotations
 from pathlib import Path
 import streamlit as st
 import pandas as pd
+import requests
+from datetime import datetime
 
 st.set_page_config(
     page_title="Ancient Language Data Service", page_icon="🏛️", layout="wide", initial_sidebar_state="collapsed"
 )
+
+runs_dir = Path(__file__).parent / "runs"
+runs_dir.mkdir(exist_ok=True)
 
 # ## Set up MACULA dataframes
 verse_df = pd.read_csv("databases/preprocessed-macula-dataframes/verse_df.csv")
@@ -298,7 +303,8 @@ else:
 
 
 llm = OpenAI(
-    model_name="gpt-3.5-turbo-16k",
+    # model_name="gpt-3.5-turbo-16k",
+    model_name="gpt-4",
     temperature=0,
     streaming=True,
 )
@@ -306,14 +312,14 @@ llm = OpenAI(
 from langchain.agents import create_pandas_dataframe_agent
 
 macula_greek_verse_agent = create_pandas_dataframe_agent(
-    OpenAI(temperature=0),
+    llm,
     # mg, # verse_df (?)
     verse_df,
     # verbose=True,
 )
 
 macula_greek_words_agent = create_pandas_dataframe_agent(
-    OpenAI(temperature=0),
+    llm,
     # mg, # verse_df (?)
     mg,
     # verbose=True,
@@ -355,7 +361,7 @@ discourse_types = {
     'Embedded Focus+': {'description': 'A constituent of a phrase or embedded clause preposed for focal prominence.'}
 }
 
-@tool
+@tool # FIXME: use atlas agent instead
 def linguistic_data_lookup_tool(query):
     """Query the linguistic data for relevant documents and add explanatory suffix if appropriate."""
     context_docs = context_chroma.similarity_search(query, k=3)
@@ -368,76 +374,216 @@ def linguistic_data_lookup_tool(query):
     if include_suffix_flag:
         context_docs.append(explanatory_suffix)
     return str(context_docs)
-            
+
+@tool
+def query_bible(query: str):
+    """Ask a question of the Berean Bible endpoint."""
+    endpoint = "https://ryderwishart--bible-chroma-get-documents.modal.run/"
+    url_encoded_query = query.replace(" ", "%20")
+    url = f"{endpoint}?query={url_encoded_query}"
+    
+    try:
+        response = requests.get(url)
+        return response.json()
+    except:
+        return {"error": "There was an error with the request. Please reformat request or try another tool."}
+
+atlas_endpoint = "https://macula-atlas-api-qa-25c5xl4maa-uk.a.run.app/graphql/"
+def get_macula_atlas_schema():
+    """Query the macula atlas api for its schema"""
+    global atlas_endpoint
+    query = """
+    query IntrospectionQuery {
+        __schema {
+            types {
+                name
+                kind
+                fields {
+                    name
+                    type {
+                        name
+                        kind
+                        ofType {
+                            name
+                            kind
+                        }
+                    }
+                }
+            }
+        }
+    }"""
+    request = requests.post(atlas_endpoint, json={"query": query})
+    json_output = request.json()
+
+    # Simplify the schema
+    simplified_schema = {}
+    for type_info in json_output["data"]["__schema"]["types"]:
+        if not type_info["name"].startswith("__"):
+            fields = type_info.get("fields")
+            if fields is not None and fields is not []:
+                simplified_schema[type_info["name"]] = {
+                    "kind": type_info["kind"],
+                    "fields": ", ".join(
+                        [
+                            field["name"]
+                            for field in fields
+                            if not field["name"].startswith("__")
+                        ]
+                    ),
+                }
+            else:
+                simplified_schema[type_info["name"]] = {
+                    "kind": type_info["kind"],
+                }
+
+    return simplified_schema
+
+    # Convert the simplified schema to YAML
+    # yaml_output = yaml.dump(simplified_schema, default_flow_style=False)
+
+    # return yaml_output
+
+from langchain.utilities import GraphQLAPIWrapper
+from langchain.agents import load_tools, initialize_agent, AgentType
+
+atlas_tools = load_tools(
+    ["graphql"],
+    graphql_endpoint=atlas_endpoint,
+    llm=llm,
+)
+atlas_agent = initialize_agent(
+        atlas_tools, llm, agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION, verbose=True
+    )
+
+@tool
+def answer_question_using_atlas(query: str, show_sources: bool = False):
+    """Answer a question using the Macula Atlas API.
+    
+    Step 1. find the most relevant Bible verse reference using the Berean Bible endpoint
+    Step 2. find the relevant discourse features using the Macula Atlas API
+    Step 3. add explanatory note with glosses for found discourse features 
+    """
+    
+    global atlas_endpoint
+    graphql_fields = get_macula_atlas_schema() # Only call this when the ATLAS agent is called
+    examples = """
+    ## All features and instances for 2 Corinthians 8:2
+    query AnnotationFeatures {
+        annotationFeatures(filters: {reference: "2CO 8:2"}) {
+        label
+            uri
+            instances(filters: {reference: "2CO 8:2"}) {
+                uri
+                tokens {
+                    ref
+                }
+            }
+        }
+    }
+    
+    ## First 10 annotations with featureLabel "Main clauses"
+    query Annotations {
+        annotations(
+            filters: { featureLabel: "Main clauses" }
+            pagination: { limit: 10, offset: 0 }
+        ) {
+            uri
+            depth
+            tokens {
+                ref
+            }
+        }
+    }
+
+    ## All features and instances for John 1:12
+    query {
+        annotationFeatures(filters: {reference: "JHN 1:12"}) {
+            label
+            uri
+            instances(filters: {reference: "JHN 1:12"}) {
+                uri
+                tokens {
+                    ref
+                }
+            }
+        }
+    }
+    
+    ## All features for John 3:16
+    query AnnotationFeatures {
+        annotationFeatures(filters: {reference: "JHN 3:16"}) {
+        label
+            uri
+            data
+        }
+    }
+    
+    Note that the bible reference is repeated for features and for instances. If searching for features without a reference filter, be sure to use pagination to limit the number of results returned!
+"""
+
+    prompt = f"""Here are some example queries for the graphql endpoint described below:
+    {examples}
+
+    Answer the following question: {query} in the graphql database that has this schema {graphql_fields}"""
+
+    result = atlas_agent.run(prompt)
+    
+    # Check result for discourse features and add explanatory suffix if appropriate
+    discourse_features_in_result = []
+    for discourse_type in discourse_types.keys():
+        if discourse_type in result:
+            discourse_features_in_result.append(discourse_type)
+    if len(discourse_features_in_result) > 0:
+        explanatory_suffix = "Here are the definitions of the relevant discourse features:"
+        for discourse_feature in discourse_features_in_result:
+            explanatory_suffix += f"\n\n{discourse_feature}: {discourse_types[discourse_feature]['description']}"
+        result += explanatory_suffix
+    
+    return result
+
 
 tools = [
     Tool(
         name="Bible Verse Reader Lookup",
-        # Use the
-        # func=lambda x: bible_chroma.search(x, search_type="similarity", k=2),
-        # func=lambda x: bible_tool({"question": x}, return_only_outputs=True),
-        # func=lambda x: get_relevant_bible_verses(x),
-        func=lambda x: bible_chroma.search(x, search_type="similarity", k=10),
-        description="useful for finding verses that are similar to the user's query, not suitable for complex queries. Be very careful to check whether the verses are actually relevant to the user's question and not just similar to the user's question in superficial ways",
-        # callbacks=[StreamlitSidebarCallbackHandler()],
+        func=query_bible.run,
+        description="useful for finding verses that are similar to the user's query; not suitable for complex queries. Be very careful to check whether the verses are actually relevant to the user's question and not just similar to the user's question in superficial ways. Input should be a fully formed question.",
     ),
     Tool(
         name="Bible Words Lookup",
         func=macula_greek_words_agent.run,  # Note: using the NT-only agent here
-        description="useful for finding information about individual biblical words from a Greek words dataframe, which includes glosses, lemmas, normalized forms, and more. This tool is not useful for grammar and syntax questions (about subjects, objects, verbs, etc.), but is useful for finding information about the words themselves",
+        description="useful for finding information about individual biblical words from a Greek words dataframe, which includes glosses, lemmas, normalized forms, and more. This tool is not useful for grammar and syntax questions (about subjects, objects, verbs, etc.), but is useful for finding information about the words themselves. Input should be a fully formed question.",
     ),
     Tool(
         name="Bible Verse Dataframe Tool",
         func=macula_greek_verse_agent.run,  # Note: using the NT-only agent here
-        description="useful for finding information about Bible verses in a bible verse dataframe in case counting, grouping, aggregating, or list building is required. This tool is not useful for grammar and syntax questions (about subjects, objects, verbs, etc.), but is useful for finding information about the verses (English or Greek or Greek lemmas) themselves",
-        # callbacks=[StreamlitSidebarCallbackHandler()],
+        description="useful for finding information about Bible verses in a bible verse dataframe in case counting, grouping, aggregating, or list building is required. This tool is not useful for grammar and syntax questions (about subjects, objects, verbs, etc.), but is useful for finding information about the verses (English or Greek or Greek lemmas) themselves. Input should be a fully formed question.",
     ),
     Tool(
         name="Linguistic Data Lookup",
-        # func=lambda x: context_chroma.similarity_search(x, k=3),
-        func=linguistic_data_lookup_tool.run,
-        description="useful for finding answers about linguistics, discourse, situational context, participants, semantic roles (source/agent, process, goal, etc.), or who the speakers are in a passage. Input MUST ALWAYS include a scope keyword like 'discourse', 'roles', or 'situation'",
+        # func=linguistic_data_lookup_tool.run,
+        func=answer_question_using_atlas.run,
+        description="useful for finding answers about linguistics, discourse, situational context, participants, semantic roles (source/agent, process, goal, etc.), or who the speakers are in a passage. Input should be a verse reference only.",
     ),
-    # Tool(
-    #     name="Context for Most Relevant Passage", # NOTE: this tool isn't working quite right. Needs some work
-    #     func=get_context_for_most_relevant_passage.run,
-    #     description="useful for when you need to find relevant linguistic context for a Bible passage. Input should be 'situation for' and the original user query",
-    #     callbacks=[StreamlitSidebarCallbackHandler()],
-    # ),
     Tool(
         name="Syntax Data Lookup",
         func=lambda x: get_syntax_for_query(x),
-        description="useful for finding syntax data about the user's query. Use this if the user is asking a question that relates to a sentence's structure, such as 'who is the subject of this sentence?' or 'what are the circumstances of this verb?'",
-        # callbacks=[StreamlitSidebarCallbackHandler()],
+        description="useful for finding syntax data about the user's query. Use this if the user is asking a question that relates to a sentence's structure, such as 'who is the subject of this sentence?' or 'what are the circumstances of this verb?'. Input should be a fully formed question.",
     ),
     Tool(
         name="Theological Data Lookup",
         func=lambda x: theology_chroma.search(x, search_type="similarity", k=5),
-        # func=lambda query: get_similar_resource(theology_chroma, query, k=2),
-        # func=lambda x: theology_tool({"question": x}, return_only_outputs=True),
-        # callbacks=[StreamlitSidebarCallbackHandler()],
-        description="if you can't find a linguistic answer, this is useful only for finding theological data about the user's query. Use this if the user is asking about theological concepts or value-oriented questions about 'why' the Bible says certain things. Always be sure to cite the source of the data",
+        description="if you can't find a linguistic answer, this is useful only for finding theological data about the user's query. Use this if the user is asking about theological concepts or value-oriented questions about 'why' the Bible says certain things. Always be sure to cite the source of the data. Input should be a fully formed question.",
     ),
     Tool(
         name="Encyclopedic Data Lookup",
         func=lambda x: encyclopedic_chroma.similarity_search(x, k=5),
-        # func=lambda query: get_similar_resource(encyclopedic_chroma, query, k=2),
-        # func=lambda x: encyclopedic_tool({"question": x}, return_only_outputs=True),
-        # callbacks=[StreamlitSidebarCallbackHandler()],
-        description="useful for finding encyclopedic data about the user's query. Use this if the user is asking about historical, cultural, geographical, archaeological, or other types of information from secondary sources",
+        description="useful for finding encyclopedic data about the user's query. Use this if the user is asking about historical, cultural, geographical, archaeological, or other types of information from secondary sources. Input should be a fully formed question.",
     ),
     Tool(
         name="Any Other Kind of Question Tool",
         func=lambda x: "Sorry, I don't know!",
-        description="This tool is for vague, broad, ambiguous questions",
-        # callbacks=[StreamlitSidebarCallbackHandler()],
+        description="This tool is for vague, broad, ambiguous questions. Input should be a fully formed question.",
     ),
-    # human_tool,
-    # Tool(
-    #     name="Get Human Input Tool",
-    #     func=lambda x: input(x),
-    #     description="This tool is for vague, broad, ambiguous questions that require human input for clarification",
-    # ),
 ]
 
 # Initialize agent
@@ -445,42 +591,45 @@ mrkl = initialize_agent(
     tools, llm, agent=AgentType.CHAT_ZERO_SHOT_REACT_DESCRIPTION, verbose=True
 )
 
-# with st.form(key="form"):
-#     if not enable_custom:
-#         "Ask one of the sample questions, or enter your API Key in the sidebar to ask your own custom questions."
-#     prefilled = st.selectbox("Sample questions", sorted(SAVED_SESSIONS.keys())) or ""
-#     mrkl_input = ""
+with st.form(key="form"):
+    if not enable_custom:
+        "Ask one of the sample questions, or enter your API Key in the sidebar to ask your own custom questions."
+    prefilled = st.selectbox("Sample questions", sorted(SAVED_SESSIONS.keys())) or ""
+    user_input = ""
 
-#     if enable_custom:
-#         user_input = st.text_input("Or, ask your own question")
-#     if not mrkl_input:
-#         user_input = prefilled
-#     submit_clicked = st.form_submit_button("Submit Question")
+    if enable_custom:
+        user_input = st.text_input("Or, ask your own question")
+    if not user_input:
+        user_input = prefilled
+    submit_clicked = st.form_submit_button("Submit Question")
 
-# output_container = st.empty()
-# if with_clear_container(submit_clicked):
-#     output_container = output_container.container()
-#     output_container.chat_message("user").write(user_input)
+output_container = st.empty()
+if with_clear_container(submit_clicked):
+    output_container = output_container.container()
+    output_container.chat_message("user").write(user_input)
 
-#     answer_container = output_container.chat_message("assistant", avatar="🦜")
-#     st_callback = StreamlitCallbackHandler(answer_container)
+    answer_container = output_container.chat_message("assistant", avatar="🦜")
+    st_callback = StreamlitCallbackHandler(answer_container)
+    capturing_callback = CapturingCallbackHandler()
 
-#     # If we've saved this question, play it back instead of actually running LangChain
-#     # (so that we don't exhaust our API calls unnecessarily)
-#     # if user_input in SAVED_SESSIONS:
-#     #     session_name = SAVED_SESSIONS[user_input]
-#     #     session_path = Path(__file__).parent / "runs" / session_name
-#     #     print(f"Playing saved session: {session_path}")
-#     #     answer = playback_callbacks([st_callback], str(session_path), max_pause_time=2)
-#     # else:
-#     answer = mrkl.run(user_input, callbacks=[st_callback])
+    # If we've saved this question, play it back instead of actually running LangChain
+    # (so that we don't exhaust our API calls unnecessarily)
+    if user_input in SAVED_SESSIONS:
+        session_name = SAVED_SESSIONS[user_input]
+        session_path = Path(__file__).parent / "runs" / session_name
+        print(f"Playing saved session: {session_path}")
+        answer = playback_callbacks([st_callback], str(session_path), max_pause_time=2)
+    else:
+        answer = mrkl.run(user_input, callbacks=[st_callback, capturing_callback])
+        pickle_filename = f"{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}_{user_input[:20].replace(' ', '_')}.pickle"
+        capturing_callback.dump_records_to_file(runs_dir / pickle_filename)
 
-#     answer_container.write(answer)
+    answer_container.write(answer)
     
 
-if prompt := st.chat_input():
-    st.chat_message("user").write(prompt)
-    with st.chat_message("assistant"):
-        st_callback = StreamlitCallbackHandler(st.container())
-        response = mrkl.run(prompt, callbacks=[st_callback])
-        st.write(response)
+# if prompt := st.chat_input():
+#     st.chat_message("user").write(prompt)
+#     with st.chat_message("assistant"):
+#         st_callback = StreamlitCallbackHandler(st.container())
+#         response = mrkl.run(prompt, callbacks=[st_callback])
+#         st.write(response)
