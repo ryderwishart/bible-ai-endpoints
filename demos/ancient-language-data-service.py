@@ -9,6 +9,22 @@ st.set_page_config(
     page_title="Ancient Language Data Service", page_icon="🏛️", layout="wide", initial_sidebar_state="collapsed"
 )
 
+#----------------------Hide Streamlit footer----------------------------
+footer="""
+
+<style>footer {
+	
+	visibility: hidden;
+	
+	}<style>
+<div class='footer'>
+<p>Please click to send <a style='display:block;text-align:center;' 
+href='mailto:ryder.wishart@clear.bible' target='_blank'>feedback</a></p>
+</div>"""
+
+st.markdown(footer, unsafe_allow_html=True)
+#--------------------------------------------------------------------
+
 runs_dir = Path(__file__).parent / "runs"
 runs_dir.mkdir(exist_ok=True)
 
@@ -84,7 +100,7 @@ def playback_callbacks(
         records = load_records_from_file(records_or_filename)
 
     for record in records:
-        pause_time = min(record["time_delta"], max_pause_time)
+        pause_time = min(record["time_delta"] / 4, max_pause_time)
         if pause_time > 0:
             time.sleep(pause_time)
 
@@ -99,8 +115,8 @@ def playback_callbacks(
                 handler.on_llm_error(*record["args"], **record["kwargs"])
             elif record["callback_type"] == CallbackType.ON_TOOL_START:
                 handler.on_tool_start(*record["args"], **record["kwargs"])
-            elif record["callback_type"] == CallbackType.ON_TOOL_END:
-                handler.on_tool_end(*record["args"], **record["kwargs"])
+            # elif record["callback_type"] == CallbackType.ON_TOOL_END:
+                # handler.on_tool_end(*record["args"], **record["kwargs"])
             elif record["callback_type"] == CallbackType.ON_TOOL_ERROR:
                 handler.on_tool_error(*record["args"], **record["kwargs"])
             elif record["callback_type"] == CallbackType.ON_TEXT:
@@ -267,15 +283,11 @@ context_chroma = Chroma(
     collection_name="prosaic_contexts_shorter_itemized",
 )
 
-
-DB_PATH = (Path(__file__).parent / "Chinook.db").absolute()
-
-SAVED_SESSIONS = {
-    "Who is Leo DiCaprio's girlfriend? What is her current age raised to the 0.43 power?": "leo.pickle",
-    "What is the full name of the artist who recently released an album called "
-    "'The Storm Before the Calm' and are they in the FooBar database? If so, what albums of theirs "
-    "are in the FooBar database?": "alanis.pickle",
-}
+SAVED_SESSIONS = {}
+# Populate saved sessions from runs_dir
+for path in runs_dir.glob("*.pickle"):
+    with open(path, "rb") as f:
+        SAVED_SESSIONS[path.stem] = path
 
 
 "# 🏛️📚 Ancient Language Data Service"
@@ -541,6 +553,81 @@ def answer_question_using_atlas(query: str, show_sources: bool = False):
     
     return result
 
+@tool
+def syntax_qa_chain(query):
+    """Use langchain to complete QA chain for syntax question"""
+    global llm
+    prompt_template = """The contexts provided below follow a simple syntax markup, where 
+    s=subject
+    v=verb
+    o=object
+    io=indirect object
+    +=adverbial modifier
+    p=non-verbal predicate
+    
+    Answer each question by extracting the relevant syntax information from the provided context:
+    Q: What is the subject of the main verb in Mark 1:15?
+    Context: And (Καὶ)] 
+[[+: after (μετὰ)] the (τὸ)] 
+[[v: delivering up (παραδοθῆναι)] [s: - (τὸν)] of John (Ἰωάνην)] [v: came (ἦλθεν)] [s: - (ὁ)] Jesus (Ἰησοῦς)] [+: into (εἰς)] - (τὴν)] Galilee (Γαλιλαίαν)] [+: 
+[[v: proclaiming (κηρύσσων)] [o: the (τὸ)] gospel (εὐαγγέλιον)] - (τοῦ)] of God (Θεοῦ)] and (καὶ)] 
+[[v: saying (λέγων)] [+: - (ὅτι)] 
+[[v: Has been fulfilled (Πεπλήρωται)] [s: the (ὁ)] time (καιρὸς)] and (καὶ)] 
+[[v: has drawn near (ἤγγικεν)] [s: the (ἡ)] kingdom (βασιλεία)] - (τοῦ)] of God·(Θεοῦ)] 
+[[v: repent (μετανοεῖτε)] and (καὶ)] 
+[[v: believe (πιστεύετε)] [+: in (ἐν)] the (τῷ)] gospel.(εὐαγγελίῳ)]
+    A: The subject of the main verb is Jesus ([s: - (ὁ)] Jesus (Ἰησοῦς)])
+    
+    Q: Who is the object of Jesus' command in Matthew 28:19?
+    Context: therefore (οὖν)] 
+[
+[[+: [v: Having gone (πορευθέντες)] [v: disciple (μαθητεύσατε)] [o: all (πάντα)] the (τὰ)] nations,(ἔθνη)] 
+[[+: [v: baptizing (βαπτίζοντες)] [o: them (αὐτοὺς)] [+: in (εἰς)] the (τὸ)] name (ὄνομα)] of the (τοῦ)] Father (Πατρὸς)] and (καὶ)] of the (τοῦ)] Son (Υἱοῦ)] and (καὶ)] of the (τοῦ)] Holy (Ἁγίου)] Spirit,(Πνεύματος)] 
+[[+: [v: teaching (διδάσκοντες)] 
+[[o: [s: them (αὐτοὺς)] [v: to observe (τηρεῖν)] [o: all things (πάντα)] 
+[[apposition: [o: whatever (ὅσα)] [v: I commanded (ἐνετειλάμην)] [io: you·(ὑμῖν)]
+    A: In the verse, he commanded 'you' ([io: you·(ὑμῖν)])
+    
+    Q: What are the circumstances of the main clause in Luke 15:20?
+    Context: And (καὶ)] 
+[
+[[+: [v: having risen up (ἀναστὰς)] [v: he went (ἦλθεν)] [+: to (πρὸς)] the (τὸν)] father (πατέρα)] of himself.(ἑαυτοῦ)] now (δὲ)] 
+[[+: Still (ἔτι)] [s: he (αὐτοῦ)] [+: far (μακρὰν)] [v: being distant (ἀπέχοντος)] 
+[[v: saw (εἶδεν)] [o: him (αὐτὸν)] [s: the (ὁ)] father (πατὴρ)] of him (αὐτοῦ)] and (καὶ)] 
+[[v: was moved with compassion,(ἐσπλαγχνίσθη)] and (καὶ)] 
+[
+[[+: [v: having run (δραμὼν)] [v: fell (ἐπέπεσεν)] [+: upon (ἐπὶ)] the (τὸν)] neck (τράχηλον)] of him (αὐτοῦ)] and (καὶ)] 
+[[v: kissed (κατεφίλησεν)] [o: him.(αὐτόν)]
+    A: The implied subject goes 'to his own father' ([+: to (πρὸς)] the (τὸν)] father (πατέρα)] of himself.(ἑαυτοῦ)])
+    
+    Q: What does Jesus tell his disciples to do in Matthew 5:44 regarding their enemies, and what is the reason he gives for this command?
+    Context: however (δὲ)] 
+[[s: I (ἐγὼ)] [v: say (λέγω)] [io: to you,(ὑμῖν)] [o: 
+[[v: love (ἀγαπᾶτε)] [o: the (τοὺς)] enemies (ἐχθροὺς)] of you (ὑμῶν)]
+    A: Jesus tells his disciples to love their enemies ([[v: love (ἀγαπᾶτε)] [o: the (τοὺς)] enemies (ἐχθροὺς)] of you (ὑμῶν)])
+    
+    Q: {question}
+    Context: {context}
+    A: """
+
+    # llm = OpenAI(temperature=0)
+    llm_chain = LLMChain(
+        llm=llm,
+        prompt=PromptTemplate(
+            template=prompt_template,
+            input_variables=["question", "context"],
+        ),
+    )
+
+    syntax_brackets_endpoint = "https://ryderwishart--syntax-agent-get-syntax-for-query.modal.run/?query="
+    context = requests.get(syntax_brackets_endpoint + query).json()
+
+    # return {
+    #     "answer": llm_chain.predict(context=context, question=query),
+    #     "context": context,
+    # }
+    
+    return llm_chain.predict(context=context, question=query)
 
 tools = [
     Tool(
@@ -566,7 +653,7 @@ tools = [
     ),
     Tool(
         name="Syntax Data Lookup",
-        func=lambda x: get_syntax_for_query(x),
+        func=syntax_qa_chain.run,
         description="useful for finding syntax data about the user's query. Use this if the user is asking a question that relates to a sentence's structure, such as 'who is the subject of this sentence?' or 'what are the circumstances of this verb?'. Input should be a fully formed question.",
     ),
     Tool(
@@ -586,15 +673,18 @@ tools = [
     ),
 ]
 
+from langchain.chat_models import ChatOpenAI
+function_llm = ChatOpenAI(model='gpt-4-0613')
+
 # Initialize agent
 mrkl = initialize_agent(
-    tools, llm, agent=AgentType.CHAT_ZERO_SHOT_REACT_DESCRIPTION, verbose=True
+    tools, function_llm, agent=AgentType.CHAT_ZERO_SHOT_REACT_DESCRIPTION, verbose=True
 )
 
 with st.form(key="form"):
     if not enable_custom:
         "Ask one of the sample questions, or enter your API Key in the sidebar to ask your own custom questions."
-    prefilled = st.selectbox("Sample questions", sorted(SAVED_SESSIONS.keys())) or ""
+    prefilled = st.selectbox("Sample questions", sorted([key.replace('_', ' ') for key in SAVED_SESSIONS.keys()])) or ""
     user_input = ""
 
     if enable_custom:
@@ -621,15 +711,7 @@ if with_clear_container(submit_clicked):
         answer = playback_callbacks([st_callback], str(session_path), max_pause_time=2)
     else:
         answer = mrkl.run(user_input, callbacks=[st_callback, capturing_callback])
-        pickle_filename = f"{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}_{user_input[:20].replace(' ', '_')}.pickle"
+        pickle_filename = user_input.replace(' ', '_') + ".pickle"
         capturing_callback.dump_records_to_file(runs_dir / pickle_filename)
 
     answer_container.write(answer)
-    
-
-# if prompt := st.chat_input():
-#     st.chat_message("user").write(prompt)
-#     with st.chat_message("assistant"):
-#         st_callback = StreamlitCallbackHandler(st.container())
-#         response = mrkl.run(prompt, callbacks=[st_callback])
-#         st.write(response)
