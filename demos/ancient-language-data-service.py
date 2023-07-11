@@ -105,7 +105,7 @@ def playback_callbacks(
         records = load_records_from_file(records_or_filename)
 
     for record in records:
-        pause_time = min(record["time_delta"] / 4, max_pause_time)
+        pause_time = min(record["time_delta"] / 2, max_pause_time)
         if pause_time > 0:
             time.sleep(pause_time)
 
@@ -803,7 +803,7 @@ if with_clear_container(submit_clicked):
         session_name = SAVED_SESSIONS[path_user_input]
         session_path = Path(__file__).parent / "runs" / session_name
         print(f"Playing saved session: {session_path}")
-        answer = playback_callbacks([st_callback], str(session_path), max_pause_time=2)
+        answer = playback_callbacks([st_callback], str(session_path), max_pause_time=1)
     else:
         print(f"Running LangChain: {user_input} because not in SAVED_SESSIONS")
         # capturing_callback = CapturingCallbackHandler()
