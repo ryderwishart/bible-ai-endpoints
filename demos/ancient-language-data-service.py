@@ -296,6 +296,8 @@ for path in runs_dir.glob("*.pickle"):
 
 
 "# 🏛️📚 Ancient Language Data Service"
+"Ask questions about the Bible. **This is a work in progress.**"
+"*Note: there will be a delay when the agent calls certain external APIs that need to wake up. Subsequent calls should be quicker.*"
 
 # Setup credentials in Streamlit
 user_openai_api_key = st.sidebar.text_input(
@@ -719,7 +721,7 @@ if user_openai_api_key:
             name="Bible Verse Reader Lookup",
             func=query_bible.run,
             description="useful for finding verses that are similar to the user's query; not suitable for complex queries. Be very careful to check whether the verses are actually relevant to the user's question and not just similar to the user's question in superficial ways. Input should be a fully formed question.",
-            return_direct=True,
+            # return_direct=True,
         ),
         Tool(
             name="Bible Words Lookup",
