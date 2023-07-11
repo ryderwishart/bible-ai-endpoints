@@ -760,7 +760,11 @@ else:
 
 # Initialize agent
 mrkl = initialize_agent(
-    tools, function_llm, agent=AgentType.CHAT_ZERO_SHOT_REACT_DESCRIPTION, verbose=True
+    tools, 
+    # function_llm, 
+    llm, 
+    agent=AgentType.CHAT_ZERO_SHOT_REACT_DESCRIPTION, 
+    verbose=True
 )
 
 with st.form(key="form"):
@@ -806,10 +810,9 @@ if with_clear_container(submit_clicked):
         answer = playback_callbacks([st_callback], str(session_path), max_pause_time=1)
     else:
         print(f"Running LangChain: {user_input} because not in SAVED_SESSIONS")
-        # capturing_callback = CapturingCallbackHandler()
-        # answer = mrkl.run(user_input, callbacks=[st_callback, capturing_callback])
-        # pickle_filename = user_input.replace(" ", "_") + ".pickle"
-        # capturing_callback.dump_records_to_file(runs_dir / pickle_filename)
-        pass
+        capturing_callback = CapturingCallbackHandler()
+        answer = mrkl.run(user_input, callbacks=[st_callback, capturing_callback])
+        pickle_filename = user_input.replace(" ", "_") + ".pickle"
+        capturing_callback.dump_records_to_file(runs_dir / pickle_filename)
 
     answer_container.write(answer)
