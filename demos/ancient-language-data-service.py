@@ -247,31 +247,30 @@ from langchain.embeddings import HuggingFaceEmbeddings
 
 embeddings = HuggingFaceEmbeddings()
 
-# bible_persist_directory = '/Users/ryderwishart/genesis/databases/berean-bible-database'
-bible_persist_directory = "/Users/ryderwishart/genesis/databases/berean-bible-database"
-bible_chroma = Chroma(
-    "berean-bible", embeddings, persist_directory=bible_persist_directory
-)
+# bible_persist_directory = "/Users/ryderwishart/genesis/databases/berean-bible-database"
+# bible_chroma = Chroma(
+#     "berean-bible", embeddings, persist_directory=bible_persist_directory
+# )
 # print(bible_chroma.search("jesus speaks to peter", search_type="similarity", k=1))
 
-encyclopedic_persist_directory = "/Users/ryderwishart/biblical-machine-learning/gpt-inferences/databases/encyclopedic"
-encyclopedic_chroma = Chroma(
-    persist_directory=encyclopedic_persist_directory,
-    embedding_function=embeddings,
-    collection_name="encyclopedic",
-)
+# encyclopedic_persist_directory = "/Users/ryderwishart/biblical-machine-learning/gpt-inferences/databases/encyclopedic"
+# encyclopedic_chroma = Chroma(
+#     persist_directory=encyclopedic_persist_directory,
+#     embedding_function=embeddings,
+#     collection_name="encyclopedic",
+# )
 # print(
 #     encyclopedic_chroma.similarity_search_with_score(
 #         "What is a sarcophagus?", search_type="similarity", k=1
 #     )
 # )
 
-theology_persist_directory = (
-    "/Users/ryderwishart/biblical-machine-learning/gpt-inferences/databases/theology"
-)
-theology_chroma = Chroma(
-    "theology", embeddings, persist_directory=theology_persist_directory
-)
+# theology_persist_directory = (
+#     "/Users/ryderwishart/biblical-machine-learning/gpt-inferences/databases/theology"
+# )
+# theology_chroma = Chroma(
+#     "theology", embeddings, persist_directory=theology_persist_directory
+# )
 # print(theology_chroma.search("jesus speaks to peter", search_type="similarity", k=1))
 
 # # persist_directory = '/Users/ryderwishart/genesis/databases/itemized-prose-contexts copy' # NOTE: Itemized prose contexts are in this db
@@ -279,14 +278,14 @@ theology_chroma = Chroma(
 # context_chroma = Chroma(persist_directory=persist_directory, embedding_function=embeddings, collection_name="prosaic_contexts_itemized")
 # print(context_chroma.similarity_search_with_score('jesus (s) speaks (v) to peter (o)', search_type='similarity', k=1))
 
-persist_directory = (
-    "/Users/ryderwishart/genesis/databases/prose-contexts-shorter-itemized"
-)
-context_chroma = Chroma(
-    persist_directory=persist_directory,
-    embedding_function=embeddings,
-    collection_name="prosaic_contexts_shorter_itemized",
-)
+# persist_directory = (
+#     "/Users/ryderwishart/genesis/databases/prose-contexts-shorter-itemized"
+# )
+# context_chroma = Chroma(
+#     persist_directory=persist_directory,
+#     embedding_function=embeddings,
+#     collection_name="prosaic_contexts_shorter_itemized",
+# )
 
 SAVED_SESSIONS = {}
 # Populate saved sessions from runs_dir
@@ -423,6 +422,21 @@ def query_bible(query: str):
             "error": "There was an error with the request. Please reformat request or try another tool."
         }
 
+# query encyclopedic data using https://ryderwishart--tyndale-chroma-get-documents.modal.run/?query=jesus%20speaks%20to%20john
+@tool
+def query_encyclopedia(query: str):
+    """Ask a question of the Tyndale Encyclopedia endpoint."""
+    endpoint = "https://ryderwishart--tyndale-chroma-get-documents.modal.run/"
+    url_encoded_query = query.replace(" ", "%20")
+    url = f"{endpoint}?query={url_encoded_query}"
+
+    try:
+        response = requests.get(url)
+        return response.json()
+    except:
+        return {
+            "error": "There was an error with the request. Please reformat request or try another tool."
+        }
 
 atlas_endpoint = "https://macula-atlas-api-qa-25c5xl4maa-uk.a.run.app/graphql/"
 
@@ -717,21 +731,22 @@ if user_openai_api_key:
             func=syntax_qa_chain.run,
             description="useful for finding syntax data about the user's query. Use this if the user is asking a question that relates to a sentence's structure, such as 'who is the subject of this sentence?' or 'what are the circumstances of this verb?'. Input should be a fully formed question.",
         ),
-        Tool(
-            name="Theological Data Lookup",
-            func=lambda x: theology_chroma.search(x, search_type="similarity", k=5),
-            description="if you can't find a linguistic answer, this is useful only for finding theological data about the user's query. Use this if the user is asking about theological concepts or value-oriented questions about 'why' the Bible says certain things. Always be sure to cite the source of the data. Input should be a fully formed question.",
-        ),
+        # Tool(
+        #     name="Theological Data Lookup",
+        #     func=lambda x: theology_chroma.search(x, search_type="similarity", k=5),
+        #     description="if you can't find a linguistic answer, this is useful only for finding theological data about the user's query. Use this if the user is asking about theological concepts or value-oriented questions about 'why' the Bible says certain things. Always be sure to cite the source of the data. Input should be a fully formed question.",
+        # ),
         Tool(
             name="Encyclopedic Data Lookup",
             func=lambda x: encyclopedic_chroma.similarity_search(x, k=5),
-            description="useful for finding encyclopedic data about the user's query. Use this if the user is asking about historical, cultural, geographical, archaeological, or other types of information from secondary sources. Input should be a fully formed question.",
+            func=query_encyclopedia.run,
+            description="useful for finding encyclopedic data about the user's query. Use this if the user is asking about historical, cultural, geographical, archaeological, theological, or other types of information from secondary sources. Input should be a fully formed question.",
         ),
-        Tool(
-            name="Any Other Kind of Question Tool",
-            func=lambda x: "Sorry, I don't know!",
-            description="This tool is for vague, broad, ambiguous questions. Input should be a fully formed question.",
-        ),
+        # Tool(
+        #     name="Any Other Kind of Question Tool",
+        #     func=lambda x: "Sorry, I don't know!",
+        #     description="This tool is for vague, broad, ambiguous questions. Input should be a fully formed question.",
+        # ),
     ]
     function_llm = ChatOpenAI(openai_api_key=openai_api_key, model="gpt-4-0613")
 
