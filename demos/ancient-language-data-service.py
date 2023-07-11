@@ -422,6 +422,7 @@ def query_bible(query: str):
             "error": "There was an error with the request. Please reformat request or try another tool."
         }
 
+
 # query encyclopedic data using https://ryderwishart--tyndale-chroma-get-documents.modal.run/?query=jesus%20speaks%20to%20john
 @tool
 def query_encyclopedia(query: str):
@@ -437,6 +438,7 @@ def query_encyclopedia(query: str):
         return {
             "error": "There was an error with the request. Please reformat request or try another tool."
         }
+
 
 atlas_endpoint = "https://macula-atlas-api-qa-25c5xl4maa-uk.a.run.app/graphql/"
 
@@ -738,7 +740,7 @@ if user_openai_api_key:
         # ),
         Tool(
             name="Encyclopedic Data Lookup",
-            func=lambda x: encyclopedic_chroma.similarity_search(x, k=5),
+            # func=lambda x: encyclopedic_chroma.similarity_search(x, k=5),
             func=query_encyclopedia.run,
             description="useful for finding encyclopedic data about the user's query. Use this if the user is asking about historical, cultural, geographical, archaeological, theological, or other types of information from secondary sources. Input should be a fully formed question.",
         ),
