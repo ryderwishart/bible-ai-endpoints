@@ -7,6 +7,7 @@ from datetime import datetime
 from langchain.chat_models import ChatOpenAI
 from langchain.utilities import GraphQLAPIWrapper
 from langchain.agents import load_tools, initialize_agent, AgentType
+from langchain.schema.output_parser import OutputParserException
 
 st.set_page_config(
     page_title="Ancient Language Data Service",
@@ -299,6 +300,13 @@ for path in runs_dir.glob("*.pickle"):
 # Setup credentials in Streamlit
 user_openai_api_key = st.sidebar.text_input(
     "OpenAI API Key", type="password", help="Set this to run your own custom questions."
+)
+
+# Add a radio button selector for the model
+model_name = st.sidebar.radio(
+    "Select Model",
+    ("gpt-3.5-turbo", "gpt-4"),
+    help="Select the model to use for the chat.",
 )
 
 # Improve the linguistic data lookup tool with discourse feature definitions
@@ -676,7 +684,7 @@ if user_openai_api_key:
     llm = ChatOpenAI(
         openai_api_key=openai_api_key,
         # model_name="gpt-3.5-turbo-16k",
-        model_name="gpt-4",
+        model_name=model_name,
         temperature=0,
         streaming=True,
     )
@@ -711,27 +719,32 @@ if user_openai_api_key:
             name="Bible Verse Reader Lookup",
             func=query_bible.run,
             description="useful for finding verses that are similar to the user's query; not suitable for complex queries. Be very careful to check whether the verses are actually relevant to the user's question and not just similar to the user's question in superficial ways. Input should be a fully formed question.",
+            return_direct=True,
         ),
         Tool(
             name="Bible Words Lookup",
             func=macula_greek_words_agent.run,  # Note: using the NT-only agent here
             description="useful for finding information about individual biblical words from a Greek words dataframe, which includes glosses, lemmas, normalized forms, and more. This tool is not useful for grammar and syntax questions (about subjects, objects, verbs, etc.), but is useful for finding information about the words themselves. Input should be a fully formed question.",
+            return_direct=True,
         ),
         Tool(
             name="Bible Verse Dataframe Tool",
             func=macula_greek_verse_agent.run,  # Note: using the NT-only agent here
             description="useful for finding information about Bible verses in a bible verse dataframe in case counting, grouping, aggregating, or list building is required. This tool is not useful for grammar and syntax questions (about subjects, objects, verbs, etc.), but is useful for finding information about the verses (English or Greek or Greek lemmas) themselves. Input should be a fully formed question.",
+            return_direct=True,
         ),
         Tool(
             name="Linguistic Data Lookup",
             # func=linguistic_data_lookup_tool.run,
             func=answer_question_using_atlas.run,
             description="useful for finding answers about linguistics, discourse, situational context, participants, semantic roles (source/agent, process, goal, etc.), or who the speakers are in a passage. Input should be a verse reference only.",
+            return_direct=True,
         ),
         Tool(
             name="Syntax Data Lookup",
             func=syntax_qa_chain.run,
             description="useful for finding syntax data about the user's query. Use this if the user is asking a question that relates to a sentence's structure, such as 'who is the subject of this sentence?' or 'what are the circumstances of this verb?'. Input should be a fully formed question.",
+            return_direct=True,
         ),
         # Tool(
         #     name="Theological Data Lookup",
@@ -750,21 +763,28 @@ if user_openai_api_key:
         #     description="This tool is for vague, broad, ambiguous questions. Input should be a fully formed question.",
         # ),
     ]
-    function_llm = ChatOpenAI(openai_api_key=openai_api_key, model="gpt-4-0613")
+    # function_llm = ChatOpenAI(openai_api_key=openai_api_key, model="gpt-4-0613")
 
 else:
     openai_api_key = "not_supplied"
     enable_custom = False
-    function_llm = ChatOpenAI(openai_api_key=openai_api_key)
+    llm = ChatOpenAI(
+        openai_api_key=openai_api_key,
+        # model_name="gpt-3.5-turbo-16k",
+        model_name=model_name,
+        temperature=0,
+        streaming=True,
+    )
+    # function_llm = ChatOpenAI(openai_api_key=openai_api_key)
 
 
 # Initialize agent
 mrkl = initialize_agent(
-    tools, 
-    # function_llm, 
-    llm, 
-    agent=AgentType.CHAT_ZERO_SHOT_REACT_DESCRIPTION, 
-    verbose=True
+    tools,
+    # function_llm,
+    llm,
+    agent=AgentType.CHAT_ZERO_SHOT_REACT_DESCRIPTION,
+    verbose=True,
 )
 
 with st.form(key="form"):
@@ -811,7 +831,10 @@ if with_clear_container(submit_clicked):
     else:
         print(f"Running LangChain: {user_input} because not in SAVED_SESSIONS")
         capturing_callback = CapturingCallbackHandler()
-        answer = mrkl.run(user_input, callbacks=[st_callback, capturing_callback])
+        try:
+            answer = mrkl.run(user_input, callbacks=[st_callback, capturing_callback])
+        except OutputParserException as e:
+            answer = e.args[0].split("LLM output: ")[1]
         pickle_filename = user_input.replace(" ", "_") + ".pickle"
         capturing_callback.dump_records_to_file(runs_dir / pickle_filename)
 
