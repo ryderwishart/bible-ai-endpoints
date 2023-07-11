@@ -4,13 +4,19 @@ import streamlit as st
 import pandas as pd
 import requests
 from datetime import datetime
+from langchain.chat_models import ChatOpenAI
+from langchain.utilities import GraphQLAPIWrapper
+from langchain.agents import load_tools, initialize_agent, AgentType
 
 st.set_page_config(
-    page_title="Ancient Language Data Service", page_icon="🏛️", layout="wide", initial_sidebar_state="collapsed"
+    page_title="Ancient Language Data Service",
+    page_icon="🏛️",
+    layout="wide",
+    initial_sidebar_state="collapsed",
 )
 
-#----------------------Hide Streamlit footer----------------------------
-footer="""
+# ----------------------Hide Streamlit footer----------------------------
+footer = """
 
 <style>footer {
 	
@@ -23,7 +29,7 @@ href='mailto:ryder.wishart@clear.bible' target='_blank'>feedback</a></p>
 </div>"""
 
 st.markdown(footer, unsafe_allow_html=True)
-#--------------------------------------------------------------------
+# --------------------------------------------------------------------
 
 runs_dir = Path(__file__).parent / "runs"
 runs_dir.mkdir(exist_ok=True)
@@ -37,7 +43,6 @@ mg = pd.read_csv("databases/preprocessed-macula-dataframes/mg.csv")
 from langchain.agents import AgentType
 from langchain.agents import initialize_agent, Tool, tool
 from langchain.callbacks import StreamlitCallbackHandler
-from langchain.llms import OpenAI
 from langchain.chains import LLMChain
 
 # Set up the content from a few modules
@@ -116,7 +121,7 @@ def playback_callbacks(
             elif record["callback_type"] == CallbackType.ON_TOOL_START:
                 handler.on_tool_start(*record["args"], **record["kwargs"])
             # elif record["callback_type"] == CallbackType.ON_TOOL_END:
-                # handler.on_tool_end(*record["args"], **record["kwargs"])
+            # handler.on_tool_end(*record["args"], **record["kwargs"])
             elif record["callback_type"] == CallbackType.ON_TOOL_ERROR:
                 handler.on_tool_error(*record["args"], **record["kwargs"])
             elif record["callback_type"] == CallbackType.ON_TEXT:
@@ -232,10 +237,10 @@ def with_clear_container(submit_clicked: bool) -> bool:
 
     return False
 
+
 # # Expand functionality for more tools using DB lookups
 
 from langchain.chains.question_answering import load_qa_chain
-from langchain.llms import OpenAI
 from langchain.vectorstores import Chroma
 from langchain.prompts import PromptTemplate
 from langchain.embeddings import HuggingFaceEmbeddings
@@ -297,83 +302,98 @@ user_openai_api_key = st.sidebar.text_input(
     "OpenAI API Key", type="password", help="Set this to run your own custom questions."
 )
 
-if user_openai_api_key:
-    openai_api_key = user_openai_api_key
-    enable_custom = True
-else:
-    openai_api_key = "not_supplied"
-    enable_custom = False
-
-# Tools setup
-# llm = OpenAI(temperature=0, openai_api_key=openai_api_key, streaming=True)
-
-# search = DuckDuckGoSearchAPIWrapper()
-# llm_math_chain = LLMMathChain.from_llm(llm)
-# db = SQLDatabase.from_uri(f"sqlite:///{DB_PATH}")
-# db_chain = SQLDatabaseChain.from_llm(llm, db)
-
-
-
-llm = OpenAI(
-    # model_name="gpt-3.5-turbo-16k",
-    model_name="gpt-4",
-    temperature=0,
-    streaming=True,
-)
-
-from langchain.agents import create_pandas_dataframe_agent
-
-macula_greek_verse_agent = create_pandas_dataframe_agent(
-    llm,
-    # mg, # verse_df (?)
-    verse_df,
-    # verbose=True,
-)
-
-macula_greek_words_agent = create_pandas_dataframe_agent(
-    llm,
-    # mg, # verse_df (?)
-    mg,
-    # verbose=True,
-)
-
 # Improve the linguistic data lookup tool with discourse feature definitions
 discourse_types = {
-    'Main clauses': {'description': 'Main clauses are the top-level clauses in a sentence. They are the clauses that are not embedded in other clauses.'},
-    'Historical Perfect': {'description': 'Highlights not the speech or act to which it refers but the event(s) that follow (DFNTG §12.2).'},
-    'Specific Circumstance': {'description': 'The function of ἐγενετο ‘it came about’ and an immediately following temporal expression varies with the author (see DFNTG §10.3). In Matthew’s Gospel, it usually marks major divisions in the book (e.g. Mt 7:28). In Luke-Acts, in contrast, ‘it picks out from the general background the specific circumstance for the foreground events that are to follow’ (ibid.), as in Acts 9:37 (see also Mt 9:10).'},
-    'Verb Focus+': {'description': 'Verb in final position in clause demonstrates verb focus.'},
-    'Articular Pronoun': {'description': 'Articular pronoun, which often introduces an ‘intermediate step’ in a reported conversation.'},
-    'Topical Genitive': {'description': 'A genitival constituent that is nominal is preposed within the noun phrase for two purposes: 1) to bring it into focus; 2) within a point of departure, to indicate that it is the genitive in particular which relates to a corresponding constituent of the context.(DFNTG §4.5)'},
-    'Embedded DFE': {'description': "'Dominant focal elements' embedded within a constituent in P1."},
-    'Reported Speech': {'description': 'Reported speech.'},
-    'Ambiguous': {'description': 'Marked but ambiguous constituent order.'},
-    'Over-encoding': {'description': 'Any instance in which more encoding than the default is employed to refer to an active participant or prop. Over-encoding is used in Greek, as in other languages: to mark the beginning of a narrative unit (e.g. Mt 4:5); and to highlight the action or speech concerned (e.g. Mt 4:7).'},
-    'Highlighter': {'description': 'Presentatives - Interjections such as ἰδού and ἴδε ‘look!, see!’ typically highlight what immediately follows (Narr §5.4.2, NonNarr §7.7.3).'},
-    'Referential PoD': {'description': 'Pre-verbal topical subject other referential point of departure (NARR §3.1, NonNarr §4.3, DFNTG §§2.2, 2.8; as in 1 Th 1:6).'},
-    'annotations': {'description': 'Inline annotations.'},
-    'Left-Dislocation': {'description': 'Point of departure - A type of SENTENCE in which one of the CONSTITUENTS appears in INITIAL position and its CANONICAL position is filled by a PRONOUN or a full LEXICAL NOUN PHRASE with the same REFERENCE, e.g. John, I like him/the old chap.”'},
-    'Focus+': {'description': 'Constituents placed in P2 to give them focal prominence.'},
-    'Tail-Head linkage': {'description': 'Point of departure involving renewal - Tail-head linkage involves “the repetition in a subordinate clause, at the beginning (the ‘head’) of a new sentence, of at least the main verb of the previous sentence (the tail)” (Dooley & Levinsohn 2001:16).'},
-    'Postposed them subject': {'description': 'When a subject is postposed to the end of its clause (following nominals or adjuncts), it is marked ThS+ (e.g. Lk 1:41 [twice]). Such postposing typically marks as salient the participant who performs the next event in chronological sequence in the story (see Levinsohn 2014).'},
-    'EmbeddedRepSpeech': {'description': 'Embedded reported speech - speech that is reported within a reported speech.'},
-    'Futuristic Present': {'description': 'Highlights not the speech or act to which it refers but the event(s) that follow (DFNTG §12.2).'},
-    'OT quotes': {'description': 'Old Testament quotations.'},
-    'Constituent Negation': {'description': 'Negative pro-forms when they are in P2 indicate that the constituent has been negated rather than the clause as a whole.'},
-    'Split Focal': {'description': 'The second part of a focal constituent with only the first part in P2 (NonNarr §5.5, DFNTG §4.4).'},
-    'Right-Dislocated': {'description': 'Point of departure - A type of SENTENCE in which one of the CONSTITUENTS appears in FINAL position and its CANONICAL position is filled by a PRONOUN with the same REFERENCE, e.g. ... He’s always late, that chap.'},
-    'Appositive': {'description': 'Appositive'},
-    'Situational PoD': {'description': 'Situational point of departure (e.g. temporal, spatial, conditional―(NARR §3.1, NonNarr §4.3, DFNTG §§2.2, 2.8; as in 1 Th 3:4).'},
-    'Historical Present': {'description': 'Highlights not the speech or act to which it refers but the event(s) that follow (DFNTG §12.2).'},
-    'Noun Incorporation': {'description': 'Some nominal objects that appear to be in P2 may precede their verb because they have been “incorporated” (Rosen 1989) in the verb phrase. Typically, the phrase consists of an indefinite noun and a “light verb” such as “do, give, have, make, take” (Wikipedia entry on Light Verbs).'},
-    'Thematic Prominence': {'description': 'Thematic prominence - In Greek, prominence is given to active participants and props who are the current centre of attention (NARR §4.6) by omitting the article (DFNTG §§9.2.3-9.4), by adding αυτος ‘-self’ (e.g. in 1 Th 3:11), by using the proximal demonstrative οὗτος (NARR chap. 9, Appendix 1; e.g. in 3:3), and by postposing the constituent concerned (e.g. Mt 14:29). If such constituents are NOT in postion P1, they are demonstrating topical prominence.'},
-    'Cataphoric Focus': {'description': 'An expression that points forward to and highlights something which ‘is about to be expressed.’'},
-    'Cataphoric referent': {'description': 'The clause or sentence to which a cataphoric reference refers when NOT introduced with ὅτι or ἵνα.'},
-    'DFE': {'description': 'Constituents that may be moved from their default position to the end of a proposition to give them focal prominence include verbs, pronominals and objects that follow adjuncts (NonNarr §5.3, DFNTG §3.5). Such constituents, also called ‘dominant focal elements’or DFEs (Heimedinger 1999:167).'},
-    'Embedded Focus+': {'description': 'A constituent of a phrase or embedded clause preposed for focal prominence.'}
+    "Main clauses": {
+        "description": "Main clauses are the top-level clauses in a sentence. They are the clauses that are not embedded in other clauses."
+    },
+    "Historical Perfect": {
+        "description": "Highlights not the speech or act to which it refers but the event(s) that follow (DFNTG §12.2)."
+    },
+    "Specific Circumstance": {
+        "description": "The function of ἐγενετο ‘it came about’ and an immediately following temporal expression varies with the author (see DFNTG §10.3). In Matthew’s Gospel, it usually marks major divisions in the book (e.g. Mt 7:28). In Luke-Acts, in contrast, ‘it picks out from the general background the specific circumstance for the foreground events that are to follow’ (ibid.), as in Acts 9:37 (see also Mt 9:10)."
+    },
+    "Verb Focus+": {
+        "description": "Verb in final position in clause demonstrates verb focus."
+    },
+    "Articular Pronoun": {
+        "description": "Articular pronoun, which often introduces an ‘intermediate step’ in a reported conversation."
+    },
+    "Topical Genitive": {
+        "description": "A genitival constituent that is nominal is preposed within the noun phrase for two purposes: 1) to bring it into focus; 2) within a point of departure, to indicate that it is the genitive in particular which relates to a corresponding constituent of the context.(DFNTG §4.5)"
+    },
+    "Embedded DFE": {
+        "description": "'Dominant focal elements' embedded within a constituent in P1."
+    },
+    "Reported Speech": {"description": "Reported speech."},
+    "Ambiguous": {"description": "Marked but ambiguous constituent order."},
+    "Over-encoding": {
+        "description": "Any instance in which more encoding than the default is employed to refer to an active participant or prop. Over-encoding is used in Greek, as in other languages: to mark the beginning of a narrative unit (e.g. Mt 4:5); and to highlight the action or speech concerned (e.g. Mt 4:7)."
+    },
+    "Highlighter": {
+        "description": "Presentatives - Interjections such as ἰδού and ἴδε ‘look!, see!’ typically highlight what immediately follows (Narr §5.4.2, NonNarr §7.7.3)."
+    },
+    "Referential PoD": {
+        "description": "Pre-verbal topical subject other referential point of departure (NARR §3.1, NonNarr §4.3, DFNTG §§2.2, 2.8; as in 1 Th 1:6)."
+    },
+    "annotations": {"description": "Inline annotations."},
+    "Left-Dislocation": {
+        "description": "Point of departure - A type of SENTENCE in which one of the CONSTITUENTS appears in INITIAL position and its CANONICAL position is filled by a PRONOUN or a full LEXICAL NOUN PHRASE with the same REFERENCE, e.g. John, I like him/the old chap.”"
+    },
+    "Focus+": {
+        "description": "Constituents placed in P2 to give them focal prominence."
+    },
+    "Tail-Head linkage": {
+        "description": "Point of departure involving renewal - Tail-head linkage involves “the repetition in a subordinate clause, at the beginning (the ‘head’) of a new sentence, of at least the main verb of the previous sentence (the tail)” (Dooley & Levinsohn 2001:16)."
+    },
+    "Postposed them subject": {
+        "description": "When a subject is postposed to the end of its clause (following nominals or adjuncts), it is marked ThS+ (e.g. Lk 1:41 [twice]). Such postposing typically marks as salient the participant who performs the next event in chronological sequence in the story (see Levinsohn 2014)."
+    },
+    "EmbeddedRepSpeech": {
+        "description": "Embedded reported speech - speech that is reported within a reported speech."
+    },
+    "Futuristic Present": {
+        "description": "Highlights not the speech or act to which it refers but the event(s) that follow (DFNTG §12.2)."
+    },
+    "OT quotes": {"description": "Old Testament quotations."},
+    "Constituent Negation": {
+        "description": "Negative pro-forms when they are in P2 indicate that the constituent has been negated rather than the clause as a whole."
+    },
+    "Split Focal": {
+        "description": "The second part of a focal constituent with only the first part in P2 (NonNarr §5.5, DFNTG §4.4)."
+    },
+    "Right-Dislocated": {
+        "description": "Point of departure - A type of SENTENCE in which one of the CONSTITUENTS appears in FINAL position and its CANONICAL position is filled by a PRONOUN with the same REFERENCE, e.g. ... He’s always late, that chap."
+    },
+    "Appositive": {"description": "Appositive"},
+    "Situational PoD": {
+        "description": "Situational point of departure (e.g. temporal, spatial, conditional―(NARR §3.1, NonNarr §4.3, DFNTG §§2.2, 2.8; as in 1 Th 3:4)."
+    },
+    "Historical Present": {
+        "description": "Highlights not the speech or act to which it refers but the event(s) that follow (DFNTG §12.2)."
+    },
+    "Noun Incorporation": {
+        "description": "Some nominal objects that appear to be in P2 may precede their verb because they have been “incorporated” (Rosen 1989) in the verb phrase. Typically, the phrase consists of an indefinite noun and a “light verb” such as “do, give, have, make, take” (Wikipedia entry on Light Verbs)."
+    },
+    "Thematic Prominence": {
+        "description": "Thematic prominence - In Greek, prominence is given to active participants and props who are the current centre of attention (NARR §4.6) by omitting the article (DFNTG §§9.2.3-9.4), by adding αυτος ‘-self’ (e.g. in 1 Th 3:11), by using the proximal demonstrative οὗτος (NARR chap. 9, Appendix 1; e.g. in 3:3), and by postposing the constituent concerned (e.g. Mt 14:29). If such constituents are NOT in postion P1, they are demonstrating topical prominence."
+    },
+    "Cataphoric Focus": {
+        "description": "An expression that points forward to and highlights something which ‘is about to be expressed.’"
+    },
+    "Cataphoric referent": {
+        "description": "The clause or sentence to which a cataphoric reference refers when NOT introduced with ὅτι or ἵνα."
+    },
+    "DFE": {
+        "description": "Constituents that may be moved from their default position to the end of a proposition to give them focal prominence include verbs, pronominals and objects that follow adjuncts (NonNarr §5.3, DFNTG §3.5). Such constituents, also called ‘dominant focal elements’or DFEs (Heimedinger 1999:167)."
+    },
+    "Embedded Focus+": {
+        "description": "A constituent of a phrase or embedded clause preposed for focal prominence."
+    },
 }
 
-@tool # FIXME: use atlas agent instead
+
+@tool  # FIXME: use atlas agent instead
 def linguistic_data_lookup_tool(query):
     """Query the linguistic data for relevant documents and add explanatory suffix if appropriate."""
     context_docs = context_chroma.similarity_search(query, k=3)
@@ -387,20 +407,26 @@ def linguistic_data_lookup_tool(query):
         context_docs.append(explanatory_suffix)
     return str(context_docs)
 
+
 @tool
 def query_bible(query: str):
     """Ask a question of the Berean Bible endpoint."""
     endpoint = "https://ryderwishart--bible-chroma-get-documents.modal.run/"
     url_encoded_query = query.replace(" ", "%20")
     url = f"{endpoint}?query={url_encoded_query}"
-    
+
     try:
         response = requests.get(url)
         return response.json()
     except:
-        return {"error": "There was an error with the request. Please reformat request or try another tool."}
+        return {
+            "error": "There was an error with the request. Please reformat request or try another tool."
+        }
+
 
 atlas_endpoint = "https://macula-atlas-api-qa-25c5xl4maa-uk.a.run.app/graphql/"
+
+
 def get_macula_atlas_schema():
     """Query the macula atlas api for its schema"""
     global atlas_endpoint
@@ -455,29 +481,20 @@ def get_macula_atlas_schema():
 
     # return yaml_output
 
-from langchain.utilities import GraphQLAPIWrapper
-from langchain.agents import load_tools, initialize_agent, AgentType
-
-atlas_tools = load_tools(
-    ["graphql"],
-    graphql_endpoint=atlas_endpoint,
-    llm=llm,
-)
-atlas_agent = initialize_agent(
-        atlas_tools, llm, agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION, verbose=True
-    )
 
 @tool
 def answer_question_using_atlas(query: str, show_sources: bool = False):
     """Answer a question using the Macula Atlas API.
-    
+
     Step 1. find the most relevant Bible verse reference using the Berean Bible endpoint
     Step 2. find the relevant discourse features using the Macula Atlas API
-    Step 3. add explanatory note with glosses for found discourse features 
+    Step 3. add explanatory note with glosses for found discourse features
     """
-    
+
     global atlas_endpoint
-    graphql_fields = get_macula_atlas_schema() # Only call this when the ATLAS agent is called
+    graphql_fields = (
+        get_macula_atlas_schema()
+    )  # Only call this when the ATLAS agent is called
     examples = """
     ## All features and instances for 2 Corinthians 8:2
     query AnnotationFeatures {
@@ -539,19 +556,22 @@ def answer_question_using_atlas(query: str, show_sources: bool = False):
     Answer the following question: {query} in the graphql database that has this schema {graphql_fields}"""
 
     result = atlas_agent.run(prompt)
-    
+
     # Check result for discourse features and add explanatory suffix if appropriate
     discourse_features_in_result = []
     for discourse_type in discourse_types.keys():
         if discourse_type in result:
             discourse_features_in_result.append(discourse_type)
     if len(discourse_features_in_result) > 0:
-        explanatory_suffix = "Here are the definitions of the relevant discourse features:"
+        explanatory_suffix = (
+            "Here are the definitions of the relevant discourse features:"
+        )
         for discourse_feature in discourse_features_in_result:
             explanatory_suffix += f"\n\n{discourse_feature}: {discourse_types[discourse_feature]['description']}"
         result += explanatory_suffix
-    
+
     return result
+
 
 @tool
 def syntax_qa_chain(query):
@@ -610,7 +630,7 @@ def syntax_qa_chain(query):
     Context: {context}
     A: """
 
-    # llm = OpenAI(temperature=0)
+    # llm = OpenAI(openai_api_key=openai_api_key, temperature=0)
     llm_chain = LLMChain(
         llm=llm,
         prompt=PromptTemplate(
@@ -619,62 +639,107 @@ def syntax_qa_chain(query):
         ),
     )
 
-    syntax_brackets_endpoint = "https://ryderwishart--syntax-agent-get-syntax-for-query.modal.run/?query="
+    syntax_brackets_endpoint = (
+        "https://ryderwishart--syntax-agent-get-syntax-for-query.modal.run/?query="
+    )
     context = requests.get(syntax_brackets_endpoint + query).json()
 
     # return {
     #     "answer": llm_chain.predict(context=context, question=query),
     #     "context": context,
     # }
-    
+
     return llm_chain.predict(context=context, question=query)
 
-tools = [
-    Tool(
-        name="Bible Verse Reader Lookup",
-        func=query_bible.run,
-        description="useful for finding verses that are similar to the user's query; not suitable for complex queries. Be very careful to check whether the verses are actually relevant to the user's question and not just similar to the user's question in superficial ways. Input should be a fully formed question.",
-    ),
-    Tool(
-        name="Bible Words Lookup",
-        func=macula_greek_words_agent.run,  # Note: using the NT-only agent here
-        description="useful for finding information about individual biblical words from a Greek words dataframe, which includes glosses, lemmas, normalized forms, and more. This tool is not useful for grammar and syntax questions (about subjects, objects, verbs, etc.), but is useful for finding information about the words themselves. Input should be a fully formed question.",
-    ),
-    Tool(
-        name="Bible Verse Dataframe Tool",
-        func=macula_greek_verse_agent.run,  # Note: using the NT-only agent here
-        description="useful for finding information about Bible verses in a bible verse dataframe in case counting, grouping, aggregating, or list building is required. This tool is not useful for grammar and syntax questions (about subjects, objects, verbs, etc.), but is useful for finding information about the verses (English or Greek or Greek lemmas) themselves. Input should be a fully formed question.",
-    ),
-    Tool(
-        name="Linguistic Data Lookup",
-        # func=linguistic_data_lookup_tool.run,
-        func=answer_question_using_atlas.run,
-        description="useful for finding answers about linguistics, discourse, situational context, participants, semantic roles (source/agent, process, goal, etc.), or who the speakers are in a passage. Input should be a verse reference only.",
-    ),
-    Tool(
-        name="Syntax Data Lookup",
-        func=syntax_qa_chain.run,
-        description="useful for finding syntax data about the user's query. Use this if the user is asking a question that relates to a sentence's structure, such as 'who is the subject of this sentence?' or 'what are the circumstances of this verb?'. Input should be a fully formed question.",
-    ),
-    Tool(
-        name="Theological Data Lookup",
-        func=lambda x: theology_chroma.search(x, search_type="similarity", k=5),
-        description="if you can't find a linguistic answer, this is useful only for finding theological data about the user's query. Use this if the user is asking about theological concepts or value-oriented questions about 'why' the Bible says certain things. Always be sure to cite the source of the data. Input should be a fully formed question.",
-    ),
-    Tool(
-        name="Encyclopedic Data Lookup",
-        func=lambda x: encyclopedic_chroma.similarity_search(x, k=5),
-        description="useful for finding encyclopedic data about the user's query. Use this if the user is asking about historical, cultural, geographical, archaeological, or other types of information from secondary sources. Input should be a fully formed question.",
-    ),
-    Tool(
-        name="Any Other Kind of Question Tool",
-        func=lambda x: "Sorry, I don't know!",
-        description="This tool is for vague, broad, ambiguous questions. Input should be a fully formed question.",
-    ),
-]
 
-from langchain.chat_models import ChatOpenAI
-function_llm = ChatOpenAI(model='gpt-4-0613')
+tools = []
+
+if user_openai_api_key:
+    openai_api_key = user_openai_api_key
+    enable_custom = True
+    llm = ChatOpenAI(
+        openai_api_key=openai_api_key,
+        # model_name="gpt-3.5-turbo-16k",
+        model_name="gpt-4",
+        temperature=0,
+        streaming=True,
+    )
+
+    from langchain.agents import create_pandas_dataframe_agent
+
+    macula_greek_verse_agent = create_pandas_dataframe_agent(
+        llm,
+        # mg, # verse_df (?)
+        verse_df,
+        # verbose=True,
+    )
+
+    macula_greek_words_agent = create_pandas_dataframe_agent(
+        llm,
+        # mg, # verse_df (?)
+        mg,
+        # verbose=True,
+    )
+
+    atlas_tools = load_tools(
+        ["graphql"],
+        graphql_endpoint=atlas_endpoint,
+        llm=llm,
+    )
+    atlas_agent = initialize_agent(
+        atlas_tools, llm, agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION, verbose=True
+    )
+
+    tools = [
+        Tool(
+            name="Bible Verse Reader Lookup",
+            func=query_bible.run,
+            description="useful for finding verses that are similar to the user's query; not suitable for complex queries. Be very careful to check whether the verses are actually relevant to the user's question and not just similar to the user's question in superficial ways. Input should be a fully formed question.",
+        ),
+        Tool(
+            name="Bible Words Lookup",
+            func=macula_greek_words_agent.run,  # Note: using the NT-only agent here
+            description="useful for finding information about individual biblical words from a Greek words dataframe, which includes glosses, lemmas, normalized forms, and more. This tool is not useful for grammar and syntax questions (about subjects, objects, verbs, etc.), but is useful for finding information about the words themselves. Input should be a fully formed question.",
+        ),
+        Tool(
+            name="Bible Verse Dataframe Tool",
+            func=macula_greek_verse_agent.run,  # Note: using the NT-only agent here
+            description="useful for finding information about Bible verses in a bible verse dataframe in case counting, grouping, aggregating, or list building is required. This tool is not useful for grammar and syntax questions (about subjects, objects, verbs, etc.), but is useful for finding information about the verses (English or Greek or Greek lemmas) themselves. Input should be a fully formed question.",
+        ),
+        Tool(
+            name="Linguistic Data Lookup",
+            # func=linguistic_data_lookup_tool.run,
+            func=answer_question_using_atlas.run,
+            description="useful for finding answers about linguistics, discourse, situational context, participants, semantic roles (source/agent, process, goal, etc.), or who the speakers are in a passage. Input should be a verse reference only.",
+        ),
+        Tool(
+            name="Syntax Data Lookup",
+            func=syntax_qa_chain.run,
+            description="useful for finding syntax data about the user's query. Use this if the user is asking a question that relates to a sentence's structure, such as 'who is the subject of this sentence?' or 'what are the circumstances of this verb?'. Input should be a fully formed question.",
+        ),
+        Tool(
+            name="Theological Data Lookup",
+            func=lambda x: theology_chroma.search(x, search_type="similarity", k=5),
+            description="if you can't find a linguistic answer, this is useful only for finding theological data about the user's query. Use this if the user is asking about theological concepts or value-oriented questions about 'why' the Bible says certain things. Always be sure to cite the source of the data. Input should be a fully formed question.",
+        ),
+        Tool(
+            name="Encyclopedic Data Lookup",
+            func=lambda x: encyclopedic_chroma.similarity_search(x, k=5),
+            description="useful for finding encyclopedic data about the user's query. Use this if the user is asking about historical, cultural, geographical, archaeological, or other types of information from secondary sources. Input should be a fully formed question.",
+        ),
+        Tool(
+            name="Any Other Kind of Question Tool",
+            func=lambda x: "Sorry, I don't know!",
+            description="This tool is for vague, broad, ambiguous questions. Input should be a fully formed question.",
+        ),
+    ]
+    function_llm = ChatOpenAI(openai_api_key=openai_api_key, model="gpt-4-0613")
+
+else:
+    openai_api_key = "not_supplied"
+    enable_custom = False
+    function_llm = ChatOpenAI(openai_api_key=openai_api_key)
+
 
 # Initialize agent
 mrkl = initialize_agent(
@@ -684,7 +749,13 @@ mrkl = initialize_agent(
 with st.form(key="form"):
     if not enable_custom:
         "Ask one of the sample questions, or enter your API Key in the sidebar to ask your own custom questions."
-    prefilled = st.selectbox("Sample questions", sorted([key.replace('_', ' ') for key in SAVED_SESSIONS.keys()])) or ""
+    prefilled = (
+        st.selectbox(
+            "Sample questions",
+            sorted([key.replace("_", " ") for key in SAVED_SESSIONS.keys()]),
+        )
+        or ""
+    )
     user_input = ""
 
     if enable_custom:
@@ -694,24 +765,34 @@ with st.form(key="form"):
     submit_clicked = st.form_submit_button("Submit Question")
 
 output_container = st.empty()
+
+# st.write(SAVED_SESSIONS)
+
 if with_clear_container(submit_clicked):
     output_container = output_container.container()
     output_container.chat_message("user").write(user_input)
 
     answer_container = output_container.chat_message("assistant", avatar="🦜")
     st_callback = StreamlitCallbackHandler(answer_container)
-    capturing_callback = CapturingCallbackHandler()
 
     # If we've saved this question, play it back instead of actually running LangChain
     # (so that we don't exhaust our API calls unnecessarily)
-    if user_input in SAVED_SESSIONS:
-        session_name = SAVED_SESSIONS[user_input]
+    path_user_input = "_".join(user_input.split(" "))
+
+    # st.write(f"Checking if {path_user_input} is in {SAVED_SESSIONS.keys()}")
+
+    if path_user_input in SAVED_SESSIONS.keys():
+        print(f"Playing saved session: {user_input}")
+        session_name = SAVED_SESSIONS[path_user_input]
         session_path = Path(__file__).parent / "runs" / session_name
         print(f"Playing saved session: {session_path}")
         answer = playback_callbacks([st_callback], str(session_path), max_pause_time=2)
     else:
-        answer = mrkl.run(user_input, callbacks=[st_callback, capturing_callback])
-        pickle_filename = user_input.replace(' ', '_') + ".pickle"
-        capturing_callback.dump_records_to_file(runs_dir / pickle_filename)
+        print(f"Running LangChain: {user_input} because not in SAVED_SESSIONS")
+        # capturing_callback = CapturingCallbackHandler()
+        # answer = mrkl.run(user_input, callbacks=[st_callback, capturing_callback])
+        # pickle_filename = user_input.replace(" ", "_") + ".pickle"
+        # capturing_callback.dump_records_to_file(runs_dir / pickle_filename)
+        pass
 
     answer_container.write(answer)
