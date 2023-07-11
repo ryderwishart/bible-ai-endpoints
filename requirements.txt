@@ -10,7 +10,7 @@ blinker==1.6.2
 cachetools==5.3.1
 certifi==2023.5.7
 charset-normalizer==3.2.0
-chromadb==0.3.27
+chromadb==0.3.26
 click==8.1.4
 clickhouse-connect==0.6.6
 coloredlogs==15.0.1
