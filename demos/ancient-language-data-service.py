@@ -1082,13 +1082,13 @@ class StreamlitCallbackHandler(BaseCallbackHandler):
             #     "Current LLMThought is unexpectedly None!",
             #     "Creating new thought from parent container...",
             # )
-            # self._current_thought = LLMThought(
-            #     parent_container=self._parent_container,
-            #     expanded=self._expand_new_thoughts,
-            #     collapse_on_complete=self._collapse_completed_thoughts,
-            #     labeler=self._thought_labeler,
-            # )
-            raise RuntimeError("Current LLMThought is unexpectedly None!")
+            self._current_thought = LLMThought(
+                parent_container=self._parent_container,
+                expanded=self._expand_new_thoughts,
+                collapse_on_complete=self._collapse_completed_thoughts,
+                labeler=self._thought_labeler,
+            )
+            # raise RuntimeError("Current LLMThought is unexpectedly None!")
         return self._current_thought
 
     def _get_last_completed_thought(self) -> Optional[LLMThought]:
