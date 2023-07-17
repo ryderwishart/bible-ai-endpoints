@@ -246,7 +246,7 @@ from langchain.vectorstores import Chroma
 from langchain.prompts import PromptTemplate
 from langchain.embeddings import HuggingFaceEmbeddings
 
-embeddings = HuggingFaceEmbeddings()
+# embeddings = HuggingFaceEmbeddings()
 
 # bible_persist_directory = "/Users/ryderwishart/genesis/databases/berean-bible-database"
 # bible_chroma = Chroma(
