@@ -14,7 +14,7 @@ image = Image.debian_slim().pip_install(
 stub = Stub(
     name="bible-chroma",
     image=image,
-    secrets=[Secret.from_name("openai-qa")],
+    secrets=[Secret.from_name("openai-qa")], # Note: you need a secret in your modal.com account named "openai-qa" to use any OpenAI API calls
 )
 
 import requests
@@ -77,8 +77,8 @@ if not Path("berean-bible-vectorstore").exists():
 
 
 @stub.function()
-@web_endpoint(method="GET")
-def get_documents(query: str, k=1, show_sources: bool = False, mmr=False):
+@web_endpoint()
+def get_documents(query: str, k=5, show_sources: bool = False, mmr=False):
     global bible_chroma
     logger.info("Querying Bible Chroma database...")
     # This method can be called multiple times without reloading the database
