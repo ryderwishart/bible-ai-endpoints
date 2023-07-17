@@ -21,7 +21,7 @@ from langchain.schema import AgentAction, AgentFinish, LLMResult
 st.set_page_config(
     page_title="Ancient Language Data Service",
     page_icon="🏛️",
-    layout="wide",
+    # layout="wide",
     initial_sidebar_state="collapsed",
 )
 
