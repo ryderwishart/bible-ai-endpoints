@@ -36,25 +36,26 @@ runs_dir = Path(__file__).parent / "runs"
 runs_dir.mkdir(exist_ok=True)
 
 # ## Set up MACULA dataframes
-verse_df = pd.read_csv("databases/preprocessed-macula-dataframes/verse_df.csv")
-mg = pd.read_csv("databases/preprocessed-macula-dataframes/mg.csv")
-# mh = pd.read_csv("preprocessed-macula-dataframes/mh.csv")
 
+
+@st.cache_data
+def load_dataframes():
+    verse_df = pd.read_csv("databases/preprocessed-macula-dataframes/verse_df.csv")
+    mg = pd.read_csv("databases/preprocessed-macula-dataframes/mg.csv")
+    # mh = pd.read_csv("preprocessed-macula-dataframes/mh.csv")
+    return verse_df, mg  # , mh
+
+
+verse_df, mg = load_dataframes()
 
 from langchain.agents import AgentType
 from langchain.agents import initialize_agent, Tool, tool
-from langchain.callbacks import StreamlitCallbackHandler
+
+# from langchain.callbacks import StreamlitCallbackHandler
 from langchain.chains import LLMChain
-
-# Set up the content from a few modules
-
-# """Callback Handler captures all callbacks in a session for future offline playback."""
-
-
 import pickle
 import time
 from typing import Any, TypedDict
-
 from langchain.callbacks.base import BaseCallbackHandler
 
 
