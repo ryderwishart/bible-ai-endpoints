@@ -592,7 +592,11 @@ def answer_question_using_atlas(query: str, show_sources: bool = False):
 
     Answer the following question: {query} in the graphql database that has this schema {graphql_fields}"""
 
-    result = atlas_agent.run(prompt)
+    try:
+        result = atlas_agent.run(prompt)
+    except Exception as e:
+        prompt += f"\n\nThere was an error with the request.\nError: {e}\n\nPlease reformat GraphQL query (avoid issues with backticks if possible)."
+        result = atlas_agent.run(prompt)
 
     # Check result for discourse features and add explanatory suffix if appropriate
     discourse_features_in_result = []
