@@ -730,19 +730,19 @@ if user_openai_api_key:
         Tool(
             name="Bible Verse Reader Lookup",
             func=query_bible.run,
-            description="useful for finding verses that are similar to the user's query; not suitable for complex queries. Be very careful to check whether the verses are actually relevant to the user's question and not just similar to the user's question in superficial ways. Input should be a fully formed question.",
+            description="useful for finding verses that are similar to the user's query; not suitable for complex queries. Be very careful to check whether the verses are actually relevant to the user's question and not just similar to the user's question in superficial ways. Input should be description related to the user's query using relevant keywords. Do NOT input a verse range, as this will not work.",
             # return_direct=True,
         ),
         Tool(
             name="Bible Words Lookup",
             func=macula_greek_words_agent.run,  # Note: using the NT-only agent here
-            description="useful for finding information about individual biblical words from a Greek words dataframe, which includes glosses, lemmas, normalized forms, and more. This tool is not useful for grammar and syntax questions (about subjects, objects, verbs, etc.), but is useful for finding information about the words themselves. Input should be a fully formed question.",
+            description="useful for finding information about individual biblical words from a Greek words dataframe, which includes glosses, lemmas, normalized forms, and more. This tool is not useful for grammar and syntax questions (about subjects, objects, verbs, etc.), but is useful for finding information about the words themselves. Input should be a fully formed question related to the user's query.",
             return_direct=True,
         ),
         Tool(
             name="Bible Verse Dataframe Tool",
             func=macula_greek_verse_agent.run,  # Note: using the NT-only agent here
-            description="useful for finding information about Bible verses in a bible verse dataframe in case counting, grouping, aggregating, or list building is required. This tool is not useful for grammar and syntax questions (about subjects, objects, verbs, etc.), but is useful for finding information about the verses (English or Greek or Greek lemmas) themselves. Input should be a fully formed question.",
+            description="useful for finding information about Bible verses in a bible verse dataframe in case counting, grouping, aggregating, or list building is required. This tool is not useful for grammar and syntax questions (about subjects, objects, verbs, etc.), but is useful for finding information about the verses (English or Greek or Greek lemmas) themselves. Input should be a fully formed question related to the user's query.",
             return_direct=True,
         ),
         Tool(
