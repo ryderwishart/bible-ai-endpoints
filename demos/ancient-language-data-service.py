@@ -1154,7 +1154,7 @@ class StreamlitCallbackHandler(BaseCallbackHandler):
                 labeler=self._thought_labeler,
             )
 
-        self._current_thought.on_llm_start(serialized, prompts, **kwargs)
+        self._current_thought.on_llm_start(serialized, prompts)
 
         # We don't prune_old_thought_containers here, because our container won't
         # be visible until it has a child.
