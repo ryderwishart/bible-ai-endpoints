@@ -19,7 +19,7 @@ from langchain.schema import AgentAction, AgentFinish, LLMResult
 
 
 st.set_page_config(
-    page_title="Ancient Language Data Service",
+    page_title="Ancient Language Librarian",
     page_icon="🏛️",
     # layout="wide",
     initial_sidebar_state="collapsed",
@@ -306,8 +306,9 @@ for path in runs_dir.glob("*.pickle"):
         SAVED_SESSIONS[path.stem] = path
 
 
-"# 🏛️📚 Ancient Language Data Service"
-"Ask questions about the Bible. **This is a work in progress.**"
+"# 🏛️📚 Ancient Language Librarian"
+"Ask questions about the Bible. Open sidebar to enter your own API key and ask new questions."
+"**This is a work in progress.** Please share issues with [ryderwishart at gmail dot com]"
 "*Note: there will be a delay when the agent calls certain external APIs that need to wake up. Subsequent calls should be quicker.*"
 
 # Setup credentials in Streamlit
