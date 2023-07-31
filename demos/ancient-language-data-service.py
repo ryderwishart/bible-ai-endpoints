@@ -19,7 +19,7 @@ from langchain.schema import AgentAction, AgentFinish, LLMResult
 
 
 st.set_page_config(
-    page_title="Ancient Language Data Service",
+    page_title="Ancient Language Librarian",
     page_icon="🏛️",
     # layout="wide",
     initial_sidebar_state="collapsed",
