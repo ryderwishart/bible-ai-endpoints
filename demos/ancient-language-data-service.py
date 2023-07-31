@@ -773,7 +773,7 @@ if user_openai_api_key:
             name="Encyclopedic Data Lookup",
             # func=lambda x: encyclopedic_chroma.similarity_search(x, k=5),
             func=query_encyclopedia.run,
-            description="useful for finding encyclopedic data about the user's query. Use this if the user is asking about historical, cultural, geographical, archaeological, theological, or other types of information from secondary sources. Input should be a fully formed question.",
+            description="useful for finding encyclopedic data about the user's query. Use this if the user is asking about historical, cultural, geographical, archaeological, theological, or other types of information from secondary sources. Input should be a fully formed question. If the question is theological/philosophical, ALWAYS be sure to note that 'some sources say...' and 'be sure to check the Bible itself to confirm these claims.'",
         ),
         # Tool(
         #     name="Any Other Kind of Question Tool",
@@ -1276,3 +1276,46 @@ if with_clear_container(submit_clicked):
         capturing_callback.dump_records_to_file(runs_dir / pickle_filename)
 
     answer_container.write(answer)
+
+
+import base64
+
+@st.cache_data
+def get_base64_of_bin_file(bin_file):
+    with open(bin_file, 'rb') as f:
+        data = f.read()
+    return base64.b64encode(data).decode()
+
+def set_jpeg_as_page_bg(jpeg_file):
+    bin_str = get_base64_of_bin_file(jpeg_file)
+    page_bg_img = '''
+    <style>
+    body::after {
+        content:"";
+        background: url("data:image/jpeg;base64,''' + bin_str + '''");
+        background-size: cover;
+        background-position: 80%;
+        opacity: 1;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        right: 0;
+        position: absolute;
+        z-index: 1;   
+    }
+    .block-container {
+        background-color: rgba(255, 255, 255, 0.95);
+        border-radius: 1rem;
+        margin-top: 4rem;
+        padding-top: 0.5rem;
+        z-index: 2;
+    }
+    </style>
+    '''
+    
+    st.markdown(page_bg_img, unsafe_allow_html=True)
+    return
+
+
+set_jpeg_as_page_bg('./assets/librarian.jpg')
+
