@@ -307,7 +307,8 @@ for path in runs_dir.glob("*.pickle"):
 
 
 "# 🏛️📚 Ancient Language Librarian"
-"Ask questions about the Bible. **This is a work in progress.** Please share issues with [ryderwishart at gmail dot com]"
+"Ask questions about the Bible. Open sidebar to enter your own API key and ask new questions."
+"**This is a work in progress.** Please share issues with [ryderwishart at gmail dot com]"
 "*Note: there will be a delay when the agent calls certain external APIs that need to wake up. Subsequent calls should be quicker.*"
 
 # Setup credentials in Streamlit
